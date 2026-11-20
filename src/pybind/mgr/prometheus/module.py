@@ -172,6 +172,19 @@ OSD_STATS = ['apply_latency_ms', 'commit_latency_ms']
 
 POOL_METADATA = ('pool_id', 'name', 'type', 'description', 'compression_mode', 'application')
 
+# OSDMap pool field -> (metric name, help text). A pool whose pg_num or
+# pgp_num stays away from its target is stuck in a split or a merge.
+POOL_PG_COUNTS = {
+    'pg_num': ('pool_pg_num', 'Number of placement groups of the pool'),
+    'pg_num_target': ('pool_pg_num_target',
+                      'Number of placement groups the pool is moving toward'),
+    'pg_placement_num': ('pool_pgp_num',
+                         'Number of placement groups used for placement of the pool'),
+    'pg_placement_num_target': ('pool_pgp_num_target',
+                                'Number of placement groups used for placement '
+                                'that the pool is moving toward'),
+}
+
 RGW_METADATA = ('ceph_daemon', 'hostname', 'ceph_version', 'instance_id', 'zone_id')
 
 RBD_MIRROR_METADATA = ('ceph_daemon', 'id', 'instance_id', 'hostname',
@@ -993,6 +1006,9 @@ class Module(MgrModule, OrchestratorClientMixin):
             ('pool_id',)
         )
 
+        for name, desc in POOL_PG_COUNTS.values():
+            metrics[name] = Metric('gauge', name, desc, ('pool_id',))
+
         metrics['health_detail'] = Metric(
             'gauge',
             'health_detail',
@@ -1525,6 +1541,12 @@ class Module(MgrModule, OrchestratorClientMixin):
                                                                service.get('name', ''))})
         return ret
 
+    def set_pool_pg_counts(self, pools: List[Dict[str, Any]]) -> None:
+        for pool in pools:
+            for field, (name, _) in POOL_PG_COUNTS.items():
+                if field in pool:
+                    self.metrics[name].set(pool[field], (str(pool['pool']),))
+
     @profile_method()
     def get_metadata_and_osd_status(self) -> None:
         osd_map = self.get('osd_map')
@@ -1705,6 +1727,8 @@ class Module(MgrModule, OrchestratorClientMixin):
                     application_metadata_str,
                 ),
             )
+
+        self.set_pool_pg_counts(osd_map['pools'])
 
         # Populate other servers metadata
         # If orchestrator is available and ceph-exporter is running modify rgw instance id

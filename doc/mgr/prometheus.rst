@@ -370,6 +370,19 @@ Pools have a ``ceph_pool_metadata`` metric of the following form:
 
     ceph_pool_metadata{pool_id="2",name="cephfs_metadata_a"} 1.0
 
+Each pool also has its placement group counts from the OSDMap, and the
+targets they are moving toward:
+
+::
+
+    ceph_pool_pg_num{pool_id="2"} 32.0
+    ceph_pool_pg_num_target{pool_id="2"} 64.0
+    ceph_pool_pgp_num{pool_id="2"} 32.0
+    ceph_pool_pgp_num_target{pool_id="2"} 64.0
+
+A count that stays away from its target means the split or merge is not
+progressing.
+
 OSDs have a ``ceph_osd_metadata`` metric of the following form:
 
 ::
