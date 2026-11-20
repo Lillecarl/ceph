@@ -1067,3 +1067,34 @@ class TestRgwZoneIds(TestCase):
         self.assertEqual(
             Module.get_rgw_zone_ids(self.module),
             {'1': 'z1', 'a': 'z1', '2': 'z2', 'b': 'z2'})
+
+
+class PoolPGCountsTest(TestCase):
+    def setUp(self):
+        from prometheus.module import POOL_PG_COUNTS
+        self.module = mock.MagicMock(spec=Module)
+        self.module.metrics = {
+            name: Metric('gauge', name, desc, ('pool_id',))
+            for name, desc in POOL_PG_COUNTS.values()
+        }
+
+    def test_split_in_progress(self):
+        Module.set_pool_pg_counts(self.module, [{
+            'pool': 2,
+            'pg_num': 32,
+            'pg_num_target': 64,
+            'pg_placement_num': 16,
+            'pg_placement_num_target': 64,
+        }])
+        values = {name: m.value for name, m in self.module.metrics.items()}
+        self.assertEqual(values, {
+            'pool_pg_num': {('2',): 32},
+            'pool_pg_num_target': {('2',): 64},
+            'pool_pgp_num': {('2',): 16},
+            'pool_pgp_num_target': {('2',): 64},
+        })
+
+    def test_missing_fields_skipped(self):
+        Module.set_pool_pg_counts(self.module, [{'pool': 1, 'pg_num': 8}])
+        self.assertEqual(self.module.metrics['pool_pg_num'].value, {('1',): 8})
+        self.assertEqual(self.module.metrics['pool_pg_num_target'].value, {})
